@@ -15,12 +15,12 @@ export default function Header() {
     <header className="topbar">
       <div className="breadcrumb"><span>PostureGuard</span><span className="breadcrumb-divider">/</span><strong>{pageNames[pathname] || 'Panel de control'}</strong></div>
       <div className="topbar-actions">
-        <span className="today-label">Monitoreo activo</span>
+        <span className="today-label">Actualización automática · cada 5 s</span>
         <Link className="icon-button notification-button" to="/notifications" aria-label="Ver notificaciones" title="Notificaciones">
-          <Bell size={18} /><span className="notification-dot" />
+          <Bell size={18} />
         </Link>
         <Link className="icon-button settings-shortcut" to="/settings" aria-label="Configuración" title="Configuración"><Settings2 size={18} /></Link>
-        <button className="profile-menu" type="button" aria-label="Menú de perfil"><span className="avatar avatar-small">MG</span><ChevronDown size={15} /></button>
+        <button className="profile-menu" type="button" aria-label="Menú de perfil"><span className="avatar avatar-small">PG</span><ChevronDown size={15} /></button>
       </div>
     </header>
   )

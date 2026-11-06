@@ -4,7 +4,7 @@ import { Link, NavLink } from 'react-router-dom'
 const links = [
   { to: '/', label: 'Resumen', icon: LayoutDashboard, end: true },
   { to: '/history', label: 'Historial', icon: Clock3 },
-  { to: '/notifications', label: 'Notificaciones', icon: Bell, badge: '2' },
+  { to: '/notifications', label: 'Notificaciones', icon: Bell },
   { to: '/settings', label: 'Configuración', icon: Settings2 },
 ]
 
@@ -17,21 +17,19 @@ export default function Sidebar() {
       </Link>
       <p className="nav-caption">ESPACIO DE TRABAJO</p>
       <nav className="side-nav" aria-label="Navegación principal">
-        {links.map(({ to, label, icon: Icon, badge, end }) => (
+        {links.map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             <Icon size={18} strokeWidth={1.8} />
             <span>{label}</span>
-            {badge && <span className="nav-badge">{badge}</span>}
           </NavLink>
         ))}
       </nav>
       <div className="sidebar-device">
-        <span className="device-indicator" />
-        <div><strong>Sensor conectado</strong><small>Actualizado ahora</small></div>
+        <div><strong>Datos de sensores</strong><small>Consultados desde el panel</small></div>
       </div>
       <div className="sidebar-profile">
-        <span className="avatar">MG</span>
-        <div><strong>María García</strong><small>Plan personal</small></div>
+        <span className="avatar">PG</span>
+        <div><strong>PostureGuard</strong><small>Seguimiento de postura</small></div>
       </div>
     </aside>
   )

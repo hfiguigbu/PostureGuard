@@ -1,4 +1,4 @@
-const statusNames = { good: 'Buena', warning: 'Advertencia', bad: 'Mala' }
+import { classifyPostureStatus } from '../../utils/posture.js'
 
 export default function HistoryTable({ readings }) {
   const dateFormat = new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -8,7 +8,8 @@ export default function HistoryTable({ readings }) {
     <div className="table-scroll"><table className="history-table"><thead><tr><th>Fecha</th><th>Hora</th><th>Inclinación</th><th>Estado</th></tr></thead><tbody>
       {readings.length ? readings.map((reading) => {
         const date = new Date(reading.timestamp)
-        return <tr key={reading.id}><td>{dateFormat.format(date)}</td><td>{timeFormat.format(date)}</td><td><strong>{reading.angle}°</strong></td><td><span className={`reading-status ${reading.status}`}><i />{statusNames[reading.status]}</span></td></tr>
+        const category = classifyPostureStatus(reading.status)
+        return <tr key={reading.id}><td>{dateFormat.format(date)}</td><td>{timeFormat.format(date)}</td><td><strong>{reading.angle}°</strong></td><td><span className={`reading-status ${category}`}><i />{reading.status || 'Sin estado informado'}</span></td></tr>
       }) : <tr><td colSpan="4" className="empty-table">No hay registros para los filtros seleccionados.</td></tr>}
     </tbody></table></div>
   )
