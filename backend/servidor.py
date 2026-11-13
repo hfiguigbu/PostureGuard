@@ -1,15 +1,15 @@
+
 import json
 import os
-import threading
+import time
 
 import paho.mqtt.client as mqtt
 import mysql.connector
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify
 
 load_dotenv()
-
 
 # =====================================================
 # CONFIGURACIÓN MQTT
@@ -18,7 +18,6 @@ load_dotenv()
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
 MQTT_TOPIC = "postureguard/grupo6/postura"
-
 
 # =====================================================
 # CONFIGURACIÓN MYSQL
@@ -31,6 +30,38 @@ DB_NAME = "postura_db"
 
 ID_USUARIO = 21
 
+# =====================================================
+# CONFIGURACIÓN DEL MONITOREO
+# =====================================================
+
+# Tiempo máximo permitido de buena postura
+# sin reiniciar el período de mala postura.
+TOLERANCIA_BUENA = 5
+
+# Si no llegan lecturas durante más de 6 segundos,
+# se considera interrumpido el seguimiento.
+MAX_INTERVALO_LECTURAS = 6
+
+# =====================================================
+# ESTADO TEMPORAL EN MEMORIA
+# =====================================================
+
+seguimiento = {}
+
+def obtener_seguimiento(id_usuario):
+
+    if id_usuario not in seguimiento:
+
+        seguimiento[id_usuario] = {
+            "duracion": 0.0,
+            "ultimo_estado": None,
+            "ultimo_mensaje": None,
+            "inicio_buena": None,
+            "alerta_enviada": False
+        }
+
+    return seguimiento[id_usuario]
+
 
 # =====================================================
 # FLASK
@@ -40,10 +71,11 @@ app = Flask(__name__)
 
 
 # =====================================================
-# FUNCIÓN PARA CONECTARSE A MYSQL
+# CONEXIÓN MYSQL
 # =====================================================
 
 def conectar_mysql():
+
     conexion = mysql.connector.connect(
         host=DB_HOST,
         user=DB_USER,
@@ -59,6 +91,234 @@ def conectar_mysql():
 
 
 # =====================================================
+# PROCESAMIENTO DE POSTURA
+# =====================================================
+
+def procesar_postura(pitch, estado):
+
+    conexion = None
+    cursor = None
+
+    try:
+
+        if estado not in ("buena", "mala"):
+            raise ValueError("Estado de postura no válido")
+
+        conexion = conectar_mysql()
+        cursor = conexion.cursor(dictionary=True)
+
+        # Obtener fecha y hora desde MySQL.
+        cursor.execute("SELECT NOW() AS ahora")
+        ahora = cursor.fetchone()["ahora"]
+
+        # Obtener el umbral configurado para el usuario.
+        cursor.execute(
+            """
+            SELECT tiempo_max_mala_postura
+            FROM Usuario
+            WHERE id_usuario = %s
+            """,
+            (ID_USUARIO,)
+        )
+
+        usuario = cursor.fetchone()
+
+        if usuario is None:
+            raise ValueError(
+                f"No existe el usuario {ID_USUARIO}"
+            )
+
+        tiempo_maximo = usuario["tiempo_max_mala_postura"]
+
+        if tiempo_maximo <= 0:
+            raise ValueError(
+                "El tiempo máximo de mala postura debe ser mayor que cero"
+            )
+
+        # Obtener el seguimiento en memoria.
+        estado_actual = obtener_seguimiento(ID_USUARIO)
+
+        ahora_monotonic = time.monotonic()
+
+        ultimo_estado = estado_actual["ultimo_estado"]
+        ultimo_mensaje = estado_actual["ultimo_mensaje"]
+
+        duracion = estado_actual["duracion"]
+        inicio_buena = estado_actual["inicio_buena"]
+        alerta_enviada = estado_actual["alerta_enviada"]
+
+        # -------------------------------------------------
+        # DETECTAR INTERRUPCIÓN DE COMUNICACIÓN
+        # -------------------------------------------------
+
+        if ultimo_mensaje is not None:
+
+            intervalo = ahora_monotonic - ultimo_mensaje
+
+            if intervalo > MAX_INTERVALO_LECTURAS:
+
+                duracion = 0.0
+                inicio_buena = None
+                alerta_enviada = False
+                ultimo_estado = None
+
+        # -------------------------------------------------
+        # PROCESAR POSTURA MALA
+        # -------------------------------------------------
+
+        if estado == "mala":
+
+            if ultimo_estado == "mala":
+
+                # Sumar el tiempo transcurrido desde la
+                # última lectura mala.
+                intervalo = ahora_monotonic - ultimo_mensaje
+
+                duracion += intervalo
+
+            elif ultimo_estado == "buena":
+
+                # Volvió a mala después de un período bueno.
+                tiempo_buena = (
+                    ahora_monotonic - inicio_buena
+                    if inicio_buena is not None
+                    else TOLERANCIA_BUENA + 1
+                )
+
+                if tiempo_buena > TOLERANCIA_BUENA:
+
+                    # Superó la tolerancia: período nuevo.
+                    duracion = 0.0
+                    alerta_enviada = False
+
+                # Si no superó la tolerancia, conserva
+                # la duración acumulada.
+
+                inicio_buena = None
+
+            else:
+
+                # Primera lectura mala de un período nuevo.
+                duracion = 0.0
+                inicio_buena = None
+                alerta_enviada = False
+
+        # -------------------------------------------------
+        # PROCESAR POSTURA BUENA
+        # -------------------------------------------------
+
+        elif estado == "buena":
+
+            if ultimo_estado == "mala":
+
+                # Contabilizar el tiempo desde la última
+                # lectura mala hasta esta lectura buena.
+                intervalo = ahora_monotonic - ultimo_mensaje
+                duracion += intervalo
+
+                # Comienza el período de tolerancia.
+                inicio_buena = ahora_monotonic
+
+            elif ultimo_estado == "buena":
+
+                # Comprobar si superó el tiempo permitido.
+                if inicio_buena is not None:
+
+                    tiempo_buena = (
+                        ahora_monotonic - inicio_buena
+                    )
+
+                    if tiempo_buena > TOLERANCIA_BUENA:
+
+                        duracion = 0.0
+                        alerta_enviada = False
+                        inicio_buena = None
+
+        # -------------------------------------------------
+        # GENERAR ALERTA
+        # -------------------------------------------------
+
+        if (
+            estado == "mala"
+            and duracion >= tiempo_maximo
+            and not alerta_enviada
+        ):
+
+            cursor.execute(
+                """
+                INSERT INTO Alerta
+                (id_usuario, mensaje, fecha)
+                VALUES (%s, %s, NOW())
+                """,
+                (
+                    ID_USUARIO,
+                    "Se detectó una mala postura prolongada. "
+                    "Se recomienda corregir la postura."
+                )
+            )
+
+            alerta_enviada = True
+
+            print("¡ALERTA DE MALA POSTURA GENERADA!")
+
+        # -------------------------------------------------
+        # GUARDAR LECTURA HISTÓRICA
+        # -------------------------------------------------
+
+        cursor.execute(
+            """
+            INSERT INTO Registro_Postura
+            (
+                id_usuario,
+                angulo_inclinacion,
+                estado_postura,
+                duracion,
+                fecha
+            )
+            VALUES (%s, %s, %s, %s, NOW())
+            """,
+            (
+                ID_USUARIO,
+                pitch,
+                estado,
+                int(duracion)
+            )
+        )
+
+        conexion.commit()
+
+        # Actualizar el seguimiento en memoria
+        # solamente después de guardar correctamente.
+        estado_actual["duracion"] = duracion
+        estado_actual["ultimo_estado"] = estado
+        estado_actual["ultimo_mensaje"] = ahora_monotonic
+        estado_actual["inicio_buena"] = inicio_buena
+        estado_actual["alerta_enviada"] = alerta_enviada
+
+        print("\n------------------------------")
+        print("Lectura guardada correctamente")
+        print("Ángulo:", pitch)
+        print("Estado:", estado)
+        print("Duración acumulada:", int(duracion), "segundos")
+        print("Umbral:", tiempo_maximo, "segundos")
+
+    except Exception as error:
+
+        if conexion:
+            conexion.rollback()
+
+        print("Error al procesar postura:", error)
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexion and conexion.is_connected():
+            conexion.close()
+
+
+# =====================================================
 # MQTT - CUANDO SE CONECTA
 # =====================================================
 
@@ -67,11 +327,9 @@ def cuando_se_conecta(client, userdata, flags, rc):
     if rc == 0:
 
         print("Conectado al broker MQTT")
-
         client.subscribe(MQTT_TOPIC)
 
-        print("Suscripto al tópico:")
-        print(MQTT_TOPIC)
+        print("Suscripto al tópico:", MQTT_TOPIC)
 
     else:
 
@@ -84,68 +342,37 @@ def cuando_se_conecta(client, userdata, flags, rc):
 
 def cuando_llega_mensaje(client, userdata, msg):
 
-    print("\n------------------------------")
-    print("Nuevo mensaje MQTT recibido")
-
     try:
 
         mensaje = msg.payload.decode("utf-8")
-
-        print("Payload:", mensaje)
-
         datos = json.loads(mensaje)
 
-        pitch = datos["pitch"]
+        pitch = float(datos["pitch"])
         estado = datos["estado_postura"]
 
-        print("Pitch:", pitch)
-        print("Estado:", estado)
+        print("\nNuevo mensaje MQTT recibido")
+        print("Payload:", mensaje)
 
-        # Conectar a MySQL
-        conexion = conectar_mysql()
-
-        cursor = conexion.cursor()
-
-        # INSERT
-        sql = """
-        INSERT INTO Registro_Postura
-        (id_usuario, angulo_inclinacion, estado_postura, duracion, fecha)
-        VALUES (%s, %s, %s, %s, NOW())
-        """
-
-        valores = (
-            ID_USUARIO,
-            pitch,
-            estado,
-            0
-        )
-
-        cursor.execute(sql, valores)
-
-        conexion.commit()
-
-        print("Lectura guardada correctamente en MySQL")
-
-        cursor.close()
-        conexion.close()
+        procesar_postura(pitch, estado)
 
     except Exception as error:
 
-        print("Error:", error)
+        print("Error al recibir mensaje MQTT:", error)
 
 
 # =====================================================
-# ENDPOINT 1
-# LECTURAS DE LOS SENSORES
+# ENDPOINT 1 - LECTURAS DE LOS SENSORES
 # =====================================================
 
 @app.route("/api/lecturas_sensores", methods=["GET"])
 def lecturas_sensores():
 
+    conexion = None
+    cursor = None
+
     try:
 
         conexion = conectar_mysql()
-
         cursor = conexion.cursor(dictionary=True)
 
         sql = """
@@ -158,37 +385,41 @@ def lecturas_sensores():
         FROM Usuario u
         INNER JOIN Registro_Postura r
             ON u.id_usuario = r.id_usuario
+        WHERE u.id_usuario = %s
         ORDER BY r.fecha DESC
         """
 
-        cursor.execute(sql)
-
+        cursor.execute(sql, (ID_USUARIO,))
         resultados = cursor.fetchall()
-
-        cursor.close()
-        conexion.close()
 
         return jsonify(resultados)
 
     except Exception as error:
 
-        return jsonify({
-            "error": str(error)
-        }), 500
+        return jsonify({"error": str(error)}), 500
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexion and conexion.is_connected():
+            conexion.close()
 
 
 # =====================================================
-# ENDPOINT 2
-# CANTIDAD DE REGISTROS POR USUARIO
+# ENDPOINT 2 - RESUMEN DE USUARIOS
 # =====================================================
 
 @app.route("/api/resumen_usuarios", methods=["GET"])
 def resumen_usuarios():
 
+    conexion = None
+    cursor = None
+
     try:
 
         conexion = conectar_mysql()
-
         cursor = conexion.cursor(dictionary=True)
 
         sql = """
@@ -206,19 +437,65 @@ def resumen_usuarios():
         """
 
         cursor.execute(sql)
-
         resultados = cursor.fetchall()
-
-        cursor.close()
-        conexion.close()
 
         return jsonify(resultados)
 
     except Exception as error:
 
-        return jsonify({
-            "error": str(error)
-        }), 500
+        return jsonify({"error": str(error)}), 500
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexion and conexion.is_connected():
+            conexion.close()
+
+
+# =====================================================
+# ENDPOINT 3 - ALERTAS
+# =====================================================
+
+@app.route("/api/alertas", methods=["GET"])
+def alertas():
+
+    conexion = None
+    cursor = None
+
+    try:
+
+        conexion = conectar_mysql()
+        cursor = conexion.cursor(dictionary=True)
+
+        sql = """
+        SELECT
+            id_alerta,
+            id_usuario,
+            mensaje,
+            fecha
+        FROM Alerta
+        WHERE id_usuario = %s
+        ORDER BY fecha DESC
+        """
+
+        cursor.execute(sql, (ID_USUARIO,))
+        resultados = cursor.fetchall()
+
+        return jsonify(resultados)
+
+    except Exception as error:
+
+        return jsonify({"error": str(error)}), 500
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexion and conexion.is_connected():
+            conexion.close()
 
 
 # =====================================================
@@ -238,7 +515,6 @@ cliente.connect(
     60
 )
 
-# MQTT funciona en segundo plano
 cliente.loop_start()
 
 

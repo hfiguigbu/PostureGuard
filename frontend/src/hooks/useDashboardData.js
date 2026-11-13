@@ -4,7 +4,7 @@ import api from '../services/api.js'
 const REFRESH_INTERVAL = 5000
 
 export default function useDashboardData() {
-  const [data, setData] = useState({ readings: [], userSummaries: [] })
+  const [data, setData] = useState({ readings: [], userSummaries: [], alerts: [] })
   const [loading, setLoading] = useState(true)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState('')

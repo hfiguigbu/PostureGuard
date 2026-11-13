@@ -7,7 +7,7 @@ import HistoryFilters from '../components/history/HistoryFilters.jsx'
 import HistoryTable from '../components/history/HistoryTable.jsx'
 import PostureChart from '../components/dashboard/PostureChart.jsx'
 import useDashboardData from '../hooks/useDashboardData.js'
-import { classifyPostureStatus } from '../utils/posture.js'
+import { classifyPostureStatus, formatDuration } from '../utils/posture.js'
 
 export default function History() {
   const [filters, setFilters] = useState({ from: '', to: '', status: 'all' })
@@ -23,9 +23,9 @@ export default function History() {
   }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)), [filters, readings])
 
   const exportCsv = () => {
-    const rows = [['Fecha', 'Hora', 'Ángulo', 'Estado'], ...filteredReadings.map((reading) => {
+    const rows = [['Fecha', 'Hora', 'Ángulo', 'Duración acumulada', 'Estado'], ...filteredReadings.map((reading) => {
       const date = new Date(reading.timestamp)
-      return [date.toLocaleDateString('es'), date.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }), `${reading.angle}°`, reading.status]
+      return [date.toLocaleDateString('es'), date.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }), `${reading.angle}°`, reading.duration === null || reading.duration === undefined ? 'Sin dato' : formatDuration(reading.duration), reading.status]
     })]
     const file = new Blob([rows.map((row) => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(file)

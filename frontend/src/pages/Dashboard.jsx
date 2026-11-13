@@ -73,7 +73,7 @@ export default function Dashboard() {
           <h2>Seguí tu progreso</h2>
           <p className="quick-description">Revisá tus registros y mantené el hábito de una postura saludable.</p>
           <Link className="quick-link" to="/history"><span className="quick-link-icon"><Activity size={17} /></span><span><strong>Ver historial</strong><small>Explorá tus últimas lecturas</small></span><span className="quick-arrow">→</span></Link>
-          <Link className="quick-link" to="/notifications"><span className="quick-link-icon amber"><Radio size={17} /></span><span><strong>Notificaciones</strong><small>La API actual no proporciona avisos</small></span><span className="quick-arrow">→</span></Link>
+          <Link className="quick-link" to="/notifications"><span className="quick-link-icon amber"><Radio size={17} /></span><span><strong>Alertas registradas</strong><small>Consultá las alertas guardadas en la API</small></span><span className="quick-arrow">→</span></Link>
           <div className="sensor-note">Datos de sensores <span>{readings.length ? 'Disponibles' : 'Sin lecturas'}</span></div>
         </aside>
       </div>

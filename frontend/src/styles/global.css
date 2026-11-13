@@ -82,10 +82,24 @@ a { color: inherit; text-decoration: none; }
 .status-label, .metric-label { color: #87958d; font-size: 9px; font-weight: 700; letter-spacing: .8px; }
 .live-indicator { display: flex; align-items: center; gap: 6px; color: #81c9a4; font-size: 9px; font-weight: 700; letter-spacing: .5px; }
 .live-indicator i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px #55d6a088; }
-.status-content { display: flex; align-items: center; gap: 14px; margin: 14px 0; }
+.status-content { display: flex; align-items: center; gap: 14px; margin: 14px 0 11px; }
 .status-icon { display: grid; width: 49px; height: 49px; flex: 0 0 49px; place-items: center; border: 1px solid #2e5940; border-radius: 50%; color: var(--green); background: #1f3829; }
 .status-content h2 { margin: 0; color: #e6f4eb; font-family: var(--heading); font-size: 19px; font-weight: 600; }
 .status-content p { margin: 5px 0 0; color: #a0afa5; font-size: 11px; }
+.status-description { min-width: 0; flex: 1; }
+.status-angle { display: grid; gap: 3px; justify-items: end; }
+.status-angle strong { color: #e6f4eb; font-family: var(--heading); font-size: 21px; font-weight: 600; }
+.status-angle small, .duration-metric span, .duration-progress-label, .duration-note { color: #87958d; font-size: 9px; }
+.posture-duration { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.duration-metric { display: grid; gap: 4px; min-width: 0; }
+.duration-metric span { font-size: 8px; font-weight: 700; letter-spacing: .5px; }
+.duration-metric strong { overflow: hidden; color: #dce8df; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.duration-progress { margin: 10px 0 11px; }
+.duration-progress-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.duration-progress-label strong { color: #b6c4bb; font-weight: 600; }
+.duration-progress-track { height: 4px; overflow: hidden; border-radius: 4px; background: #29332d; }
+.duration-progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .2s ease; }
+.duration-note { display: block; margin-top: 5px; color: #87958d; line-height: 1.4; }
 .status-footer { padding-top: 12px; border-top: 1px solid #ffffff0f; color: #85958a; font-size: 10px; }
 .status-footer > span { gap: 7px; }
 .status-alert { border-color: #573533; background: linear-gradient(110deg, #30201f, #241c1c); }
@@ -152,6 +166,7 @@ a { color: inherit; text-decoration: none; }
 .notification-warning .notification-tag { color: #e4ba70; background: #39301e; }
 .notification-improvement .notification-tag { color: #79c99d; background: #21382a; }
 .notification-copy p { margin: 7px 0; color: #97a39b; font-size: 11px; line-height: 1.6; }
+.notification-user { display: block; margin-bottom: 5px; color: #819087; font-size: 9px; }
 .notification-copy time { color: #6d7a72; font-size: 9px; }
 .dismiss-button { align-self: flex-start; padding: 3px; border: 0; color: #69766e; background: transparent; cursor: pointer; }
 .dismiss-button:hover { color: var(--text); }
@@ -234,6 +249,11 @@ a { color: inherit; text-decoration: none; }
   .page-title-action { padding-top: 15px; }
   .dashboard-grid, .dashboard-lower-grid { grid-template-columns: 1fr; gap: 10px; }
   .posture-status, .daily-summary { min-height: 171px; padding: 16px; }
+  .posture-status { min-height: 230px; }
+  .status-content h2 { font-size: 17px; }
+  .status-content { gap: 10px; }
+  .status-icon { width: 40px; height: 40px; flex-basis: 40px; }
+  .duration-metric strong { font-size: 11px; }
   .daily-summary { min-height: 177px; }
   .stats-grid { gap: 8px; margin-top: 10px; }
   .stat-card { min-height: 101px; padding: 12px 10px; }
